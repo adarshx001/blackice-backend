@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -37,6 +38,8 @@ def check_url():
         )
         result = response.json()
         analysis_id = result["data"]["id"]
+
+        time.sleep(15)
 
         analysis = requests.get(
             f"https://www.virustotal.com/api/v3/analyses/{analysis_id}",
@@ -90,6 +93,8 @@ def scan_file():
         )
         result = response.json()
         analysis_id = result["data"]["id"]
+
+        time.sleep(15)
 
         analysis = requests.get(
             f"https://www.virustotal.com/api/v3/analyses/{analysis_id}",
