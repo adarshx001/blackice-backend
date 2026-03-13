@@ -4,10 +4,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Allow frontend (GitHub Pages) to talk to this backend
-
-VT_API_KEY = os.environ.get("VT_API_KEY")
-VT_HEADERS = {"x-apikey": VT_API_KEY}
+CORS(app)
 
 # -------------------------------------------------
 # Health Check
@@ -31,6 +28,8 @@ def check_url():
         return jsonify({"error": "No URL provided"}), 400
 
     try:
+        VT_HEADERS = {"x-apikey": os.environ.get("VT_API_KEY")}
+
         response = requests.post(
             "https://www.virustotal.com/api/v3/urls",
             headers=VT_HEADERS,
@@ -82,6 +81,8 @@ def scan_file():
     file = request.files["file"]
 
     try:
+        VT_HEADERS = {"x-apikey": os.environ.get("VT_API_KEY")}
+
         response = requests.post(
             "https://www.virustotal.com/api/v3/files",
             headers=VT_HEADERS,
