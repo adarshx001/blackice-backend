@@ -1,11 +1,11 @@
 import os
 import time
+import hashlib
 import requests
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# Manual CORS headers
 @app.after_request
 def add_cors(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
@@ -16,6 +16,7 @@ def add_cors(response):
 @app.route("/", methods=["GET", "OPTIONS"])
 def home():
     return jsonify({"status": "BlackICE Backend Running"})
+
 
 @app.route("/api/check-url", methods=["POST", "OPTIONS"])
 def check_url():
@@ -61,38 +62,61 @@ def check_url():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/api/scan-file", methods=["POST", "OPTIONS"])
 def scan_file():
     if request.method == "OPTIONS":
         return jsonify({}), 200
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
+
     file = request.files["file"]
+    file_bytes = file.read()
+
+    # Calculate SHA-256 hash of the file
+    sha256_hash = hashlib.sha256(file_bytes).hexdigest()
+
     try:
         VT_HEADERS = {"x-apikey": os.environ.get("VT_API_KEY")}
-        response = requests.post(
-            "https://www.virustotal.com/api/v3/files",
-            headers=VT_HEADERS,
-            files={"file": (file.filename, file.read(), file.content_type)}
-        )
-        result = response.json()
-        analysis_id = result["data"]["id"]
-        time.sleep(15)
-        analysis = requests.get(
-            f"https://www.virustotal.com/api/v3/analyses/{analysis_id}",
+
+        # Step 1 - check if hash already exists in VirusTotal database
+        hash_response = requests.get(
+            f"https://www.virustotal.com/api/v3/files/{sha256_hash}",
             headers=VT_HEADERS
-        ).json()
-        stats = analysis["data"]["attributes"]["stats"]
+        )
+
+        if hash_response.status_code == 200:
+            # Hash found - instant result, no upload needed
+            data = hash_response.json()
+            stats = data["data"]["attributes"]["last_analysis_stats"]
+        else:
+            # Hash not found - upload the full file
+            upload_response = requests.post(
+                "https://www.virustotal.com/api/v3/files",
+                headers=VT_HEADERS,
+                files={"file": (file.filename, file_bytes, file.content_type)}
+            )
+            result = upload_response.json()
+            analysis_id = result["data"]["id"]
+            time.sleep(20)
+            analysis = requests.get(
+                f"https://www.virustotal.com/api/v3/analyses/{analysis_id}",
+                headers=VT_HEADERS
+            ).json()
+            stats = analysis["data"]["attributes"]["stats"]
+
         malicious = stats.get("malicious", 0)
         suspicious = stats.get("suspicious", 0)
         harmless = stats.get("harmless", 0)
         undetected = stats.get("undetected", 0)
+
         if malicious > 0:
             risk = "High Risk"
         elif suspicious > 0:
             risk = "Suspicious"
         else:
             risk = "Safe"
+
         return jsonify({
             "risk": risk,
             "malicious": malicious,
@@ -101,8 +125,10 @@ def scan_file():
             "undetected": undetected,
             "total_engines": malicious + suspicious + harmless + undetected
         })
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/check-password", methods=["POST", "OPTIONS"])
 def check_password():
@@ -151,6 +177,7 @@ def check_password():
     else:
         strength = "Strong"
     return jsonify({"score": score, "strength": strength, "feedback": feedback})
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
