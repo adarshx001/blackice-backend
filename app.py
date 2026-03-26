@@ -178,6 +178,54 @@ def check_password():
         strength = "Strong"
     return jsonify({"score": score, "strength": strength, "feedback": feedback})
 
+@app.route("/api/chat", methods=["POST", "OPTIONS"])
+def chat():
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+        
+    data = request.get_json()
+    user_message = data.get("message", "")
+    
+    if not user_message:
+        return jsonify({"error": "No message provided"}), 400
+        
+    # Get the Gemini key from Railway environment variables safely
+    gemini_api_key = os.environ.get("GEMINI_API_KEY")
+    if not gemini_api_key:
+        return jsonify({"error": "GEMINI_API_KEY not found on server"}), 500
+        
+    # This is your prompt, hidden securely on the backend!
+    system_prompt = """You are BlackICE Assistant, a cybersecurity chatbot built into the BlackICE toolkit. You have two areas of expertise:
+1. About BlackICE project:
+BlackICE is a free web-based cybersecurity toolkit built by students Adarsh S, Prachi N and Swanandi N. It has 5 tools:
+Password Analyzer, SHA-256 Hash Generator, Caesar Cipher, Phishing URL Checker, and File Analyzer.
+The frontend is hosted on GitHub Pages. The backend is Python Flask hosted on Railway. Live at: adarshx001.github.io/blackice-2.0
+
+2. About cybersecurity in general:
+Answer any cybersecurity question clearly and simply. Keep all answers educational. If asked something unrelated to cybersecurity, politely say you can only help with cybersecurity."""
+        
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_api_key}"
+        payload = {
+            "contents": [{"parts": [{"text": user_message}]}],
+            "systemInstruction": {"parts": [{"text": system_prompt}]}
+        }
+        headers = {"Content-Type": "application/json"}
+        
+        # Send securely from the backend to Google
+        response = requests.post(url, json=payload, headers=headers)
+        result = response.json()
+        
+        if response.status_code == 200 and "candidates" in result:
+            reply_text = result["candidates"][0]["content"]["parts"][0]["text"]
+            return jsonify({"reply": reply_text})
+        else:
+            print("Gemini API Error:", result)
+            return jsonify({"error": "Failed to get response from AI"}), 500
+            
+    except Exception as e:
+        print("Backend Error:", str(e))
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
