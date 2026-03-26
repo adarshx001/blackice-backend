@@ -17,7 +17,6 @@ def add_cors(response):
 def home():
     return jsonify({"status": "BlackICE Backend Running"})
 
-
 @app.route("/api/check-url", methods=["POST", "OPTIONS"])
 def check_url():
     if request.method == "OPTIONS":
@@ -61,7 +60,6 @@ def check_url():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 @app.route("/api/scan-file", methods=["POST", "OPTIONS"])
 def scan_file():
@@ -129,7 +127,6 @@ def scan_file():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @app.route("/api/check-password", methods=["POST", "OPTIONS"])
 def check_password():
     if request.method == "OPTIONS":
@@ -178,6 +175,8 @@ def check_password():
         strength = "Strong"
     return jsonify({"score": score, "strength": strength, "feedback": feedback})
 
+
+# --- NEW CHATBOT ROUTE FOR GEMINI ---
 @app.route("/api/chat", methods=["POST", "OPTIONS"])
 def chat():
     if request.method == "OPTIONS":
@@ -189,20 +188,19 @@ def chat():
     if not user_message:
         return jsonify({"error": "No message provided"}), 400
         
-    # Get the Gemini key from Railway environment variables safely
+    # Safely pull the key from Railway so GitHub doesn't see it
     gemini_api_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_api_key:
-        return jsonify({"error": "GEMINI_API_KEY not found on server"}), 500
+        return jsonify({"error": "GEMINI_API_KEY not found on server Environment Variables"}), 500
         
-    # This is your prompt, hidden securely on the backend!
     system_prompt = """You are BlackICE Assistant, a cybersecurity chatbot built into the BlackICE toolkit. You have two areas of expertise:
 1. About BlackICE project:
 BlackICE is a free web-based cybersecurity toolkit built by students Adarsh S, Prachi N and Swanandi N. It has 5 tools:
-Password Analyzer, SHA-256 Hash Generator, Caesar Cipher, Phishing URL Checker, and File Analyzer.
+Password Analyzer, SHA-256 Hash Generator, Caesar Cipher, Phishing URL Checker, File Analyzer.
 The frontend is hosted on GitHub Pages. The backend is Python Flask hosted on Railway. Live at: adarshx001.github.io/blackice-2.0
 
 2. About cybersecurity in general:
-Answer any cybersecurity question clearly and simply. Keep all answers educational. If asked something unrelated to cybersecurity, politely say you can only help with cybersecurity."""
+Answer any cybersecurity question clearly and simply. Keep all answers educational. If asked something completely unrelated to cybersecurity, politely say you can only help with cybersecurity topics."""
         
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_api_key}"
@@ -212,7 +210,6 @@ Answer any cybersecurity question clearly and simply. Keep all answers education
         }
         headers = {"Content-Type": "application/json"}
         
-        # Send securely from the backend to Google
         response = requests.post(url, json=payload, headers=headers)
         result = response.json()
         
@@ -226,6 +223,7 @@ Answer any cybersecurity question clearly and simply. Keep all answers education
     except Exception as e:
         print("Backend Error:", str(e))
         return jsonify({"error": str(e)}), 500
+# ------------------------------------
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
